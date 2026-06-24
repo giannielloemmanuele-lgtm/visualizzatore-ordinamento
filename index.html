@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Visualizzatore di algoritmi di ordinamento</title>
+<style>
+  :root{
+    --bg:#0e1626; --panel:#16223a; --panel-2:#1d2c49; --line:#2a3a5c;
+    --ink:#e9eef7; --muted:#8595b3;
+    --bar:#5a6e9c;
+    --compare:#f4b740;   /* confronto */
+    --swap:#ff6b6b;      /* scambio/spostamento */
+    --sorted:#3ddc97;    /* in posizione finale */
+    --pivot:#b388ff;     /* pivot (quicksort) */
+    --lt:#4dd0e1;        /* minori del pivot */
+    --gt:#ff8a65;        /* maggiori del pivot */
+    --key:#7c9eff;       /* chiave / minimo / nodo attivo */
+    --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:
+      radial-gradient(1200px 600px at 80% -10%, #1a2a48 0%, transparent 60%),
+      var(--bg);
+    color:var(--ink); font-family:var(--sans); line-height:1.5;
+    min-height:100vh; padding:28px 18px 48px;
+  }
+  .wrap{max-width:960px; margin:0 auto}
+  .eyebrow{
+    font-family:var(--mono); font-size:11px; letter-spacing:.28em;
+    text-transform:uppercase; color:var(--muted); margin:0 0 6px;
+  }
+  h1{font-size:clamp(22px,4vw,30px); margin:0 0 4px; font-weight:650; letter-spacing:-.01em}
+  .sub{color:var(--muted); font-size:14px; margin:0 0 22px}
+
+  .tabs{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px}
+  .tab{
+    font-family:var(--mono); font-size:12.5px; letter-spacing:.02em;
+    color:var(--muted); background:var(--panel); border:1px solid var(--line);
+    padding:8px 14px; border-radius:999px; cursor:pointer; transition:.15s;
+  }
+  .tab:hover{color:var(--ink); border-color:#3a4f7a}
+  .tab[aria-pressed="true"]{
+    color:#0e1626; background:var(--ink); border-color:var(--ink); font-weight:600;
+  }
+  .tab:focus-visible{outline:2px solid var(--key); outline-offset:2px}
+
+  .stage{
+    background:linear-gradient(180deg,var(--panel) 0%, #131e33 100%);
+    border:1px solid var(--line); border-radius:16px; padding:18px 18px 12px;
+    margin-bottom:14px;
+  }
+  /* albero (solo heap sort) */
+  #tree{width:100%; height:0; transition:height .2s; overflow:hidden; margin-bottom:6px}
+  #tree.on{height:190px}
+  #tree svg{width:100%; height:190px; display:block}
+  .tnode-circle{fill:var(--panel-2); stroke:var(--line); stroke-width:1.5; transition:.18s}
+  .tnode-text{fill:var(--ink); font-family:var(--mono); font-size:13px; text-anchor:middle; dominant-baseline:central}
+  .tedge{stroke:var(--line); stroke-width:1.5}
+  .tnode-key .tnode-circle{fill:var(--key); stroke:var(--key)}
+  .tnode-compare .tnode-circle{fill:var(--compare); stroke:var(--compare)}
+  .tnode-gt .tnode-circle{fill:var(--gt); stroke:var(--gt)}
+  .tnode-sorted .tnode-circle{fill:#223; stroke:var(--line); opacity:.45}
+  .tnode-key .tnode-text,.tnode-compare .tnode-text,.tnode-gt .tnode-text{fill:#0e1626; font-weight:700}
+
+  /* barre */
+  #bars{display:flex; align-items:flex-end; gap:6px; height:300px; padding-top:8px}
+  .bar{
+    flex:1 1 0; background:var(--bar); border-radius:6px 6px 3px 3px;
+    position:relative; transition:height .25s ease, background-color .15s ease;
+    min-width:0; display:flex; align-items:flex-start; justify-content:center;
+  }
+  .bar .val{
+    position:absolute; top:-20px; font-family:var(--mono); font-size:12px; color:var(--muted);
+  }
+  .bar .idx{
+    position:absolute; bottom:-20px; font-family:var(--mono); font-size:10px; color:#5b6986;
+  }
+  .bar.compare{background:var(--compare)} .bar.compare .val{color:var(--compare)}
+  .bar.swap{background:var(--swap)} .bar.swap .val{color:var(--swap)}
+  .bar.sorted{background:var(--sorted)} .bar.sorted .val{color:var(--sorted)}
+  .bar.pivot{background:var(--pivot)} .bar.pivot .val{color:var(--pivot)}
+  .bar.lt{background:var(--lt)} .bar.lt .val{color:var(--lt)}
+  .bar.gt{background:var(--gt)} .bar.gt .val{color:var(--gt)}
+  .bar.key{background:var(--key)} .bar.key .val{color:var(--key)}
+
+  .note{
+    font-family:var(--mono); font-size:13.5px; color:var(--ink);
+    background:#0c1322; border:1px solid var(--line); border-left:3px solid var(--key);
+    border-radius:8px; padding:11px 14px; margin:24px 0 0; min-height:44px;
+  }
+
+  /* controlli */
+  .controls{display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:14px 0 6px}
+  .btn{
+    background:var(--panel); border:1px solid var(--line); color:var(--ink);
+    width:42px; height:42px; border-radius:10px; cursor:pointer; font-size:15px;
+    display:grid; place-items:center; transition:.15s;
+  }
+  .btn:hover{border-color:#3a4f7a; background:var(--panel-2)}
+  .btn:focus-visible{outline:2px solid var(--key); outline-offset:2px}
+  .btn.play{width:auto; padding:0 18px; gap:8px; font-family:var(--mono); font-size:13px; letter-spacing:.05em}
+  .btn[disabled]{opacity:.4; cursor:not-allowed}
+  .ctl-group{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--muted); font-family:var(--mono)}
+  input[type=range]{accent-color:var(--key); cursor:pointer}
+  .ghost{
+    background:transparent; border:1px solid var(--line); color:var(--muted);
+    padding:9px 14px; border-radius:10px; cursor:pointer; font-family:var(--mono);
+    font-size:12.5px; transition:.15s;
+  }
+  .ghost:hover{color:var(--ink); border-color:#3a4f7a}
+  .spacer{flex:1 1 auto}
+
+  .meters{display:flex; gap:18px; font-family:var(--mono); font-size:12.5px; color:var(--muted)}
+  .meters b{color:var(--ink); font-weight:600}
+
+  .bottom{display:grid; grid-template-columns:1fr; gap:14px; margin-top:18px}
+  @media(min-width:680px){ .bottom{grid-template-columns:1.1fr 1fr} }
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:16px 18px}
+  .card h3{margin:0 0 10px; font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--muted); font-family:var(--mono); font-weight:600}
+  .cx{display:grid; grid-template-columns:auto 1fr; gap:6px 14px; font-size:13.5px}
+  .cx .k{color:var(--muted); font-family:var(--mono); font-size:12px}
+  .cx .v{font-family:var(--mono)}
+  .desc{font-size:13.5px; color:#c4cfe4; margin:0}
+  .legend{display:flex; flex-wrap:wrap; gap:10px 16px; font-size:12px; color:var(--muted)}
+  .legend span{display:inline-flex; align-items:center; gap:7px; font-family:var(--mono)}
+  .dot{width:13px; height:13px; border-radius:4px; display:inline-block}
+
+  @media (prefers-reduced-motion: reduce){
+    .bar,#tree,.tnode-circle{transition:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Strutture dati &amp; algoritmi</p>
+  <h1>Visualizzatore di ordinamento</h1>
+  <p class="sub">Ogni passo è uno stato intermedio reale dell'array — niente salti al risultato. Usa ◀ ▶ per andare a mano, o premi Play.</p>
+
+  <div class="tabs" id="tabs" role="group" aria-label="Algoritmo"></div>
+
+  <div class="stage">
+    <div id="tree" aria-hidden="true"></div>
+    <div id="bars"></div>
+    <p class="note" id="note" aria-live="polite"></p>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="first" title="Inizio (Home)">⏮</button>
+    <button class="btn" id="prev" title="Passo indietro (←)">◀</button>
+    <button class="btn play" id="play" title="Play/Pausa (spazio)"><span id="playIcon">▶</span><span id="playTxt">Play</span></button>
+    <button class="btn" id="next" title="Passo avanti (→)">▶</button>
+    <button class="btn" id="last" title="Fine (End)">⏭</button>
+    <div class="ctl-group" style="margin-left:6px">
+      <span>Velocità</span>
+      <input type="range" id="speed" min="1" max="10" value="6" style="width:90px">
+    </div>
+    <div class="spacer"></div>
+    <div class="meters">
+      <span>Confronti <b id="mCmp">0</b></span>
+      <span>Spostamenti <b id="mSwp">0</b></span>
+    </div>
+  </div>
+
+  <div class="controls" style="margin-top:0">
+    <div class="ctl-group">
+      <span>Elementi</span>
+      <input type="range" id="size" min="5" max="20" value="11" style="width:110px">
+      <b id="sizeVal" style="color:var(--ink)">11</b>
+    </div>
+    <button class="ghost" id="shuffle">↻ Nuovo array</button>
+    <div class="spacer"></div>
+    <div class="ctl-group"><span id="progress">passo 0 / 0</span></div>
+  </div>
+
+  <div class="bottom">
+    <div class="card">
+      <h3 id="algoName">Complessità</h3>
+      <div class="cx" id="cx"></div>
+      <p class="desc" id="algoDesc" style="margin-top:12px"></p>
+    </div>
+    <div class="card">
+      <h3>Legenda colori</h3>
+      <div class="legend">
+        <span><i class="dot" style="background:var(--bar)"></i>elemento</span>
+        <span><i class="dot" style="background:var(--compare)"></i>confronto</span>
+        <span><i class="dot" style="background:var(--swap)"></i>scambio</span>
+        <span><i class="dot" style="background:var(--key)"></i>chiave / nodo attivo</span>
+        <span><i class="dot" style="background:var(--pivot)"></i>pivot</span>
+        <span><i class="dot" style="background:var(--lt)"></i>minori del pivot</span>
+        <span><i class="dot" style="background:var(--gt)"></i>maggiori del pivot</span>
+        <span><i class="dot" style="background:var(--sorted)"></i>posizione finale</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ===========================================================
+   Registratore di passi: ogni algoritmo NON anima direttamente,
+   ma registra una sequenza di "frame". Così il player può andare
+   avanti, indietro e saltare ovunque banalmente.
+   frame = { arr, marks:{indice:stato}, note, comparisons, spostamenti, ...heap }
+   =========================================================== */
+function record(arr){
+  const R = { steps:[], comparisons:0, swaps:0 };
+  R.snap = (marks, note, extra={}) => {
+    R.steps.push(Object.assign({
+      arr: arr.slice(),
+      marks: Object.assign({}, marks),
+      note,
+      comparisons: R.comparisons,
+      swaps: R.swaps
+    }, extra));
+  };
+  return R;
+}
+const allSorted = n => { const m={}; for(let k=0;k<n;k++) m[k]='sorted'; return m; };
+
+/* ---------- Bubble sort ---------- */
+function bubbleSort(input){
+  const a=input.slice(), R=record(a), n=a.length;
+  R.snap({}, "Bubble sort: confronto coppie adiacenti e scambio quelle in ordine sbagliato. I più grandi 'galleggiano' verso destra.");
+  for(let i=0;i<n-1;i++){
+    const tail={}; for(let k=n-i;k<n;k++) tail[k]='sorted';
+    for(let j=0;j<n-1-i;j++){
+      const x=a[j], y=a[j+1];
+      R.comparisons++;
+      R.snap(Object.assign({},tail,{[j]:'compare',[j+1]:'compare'}), `Confronto a[${j}]=${x} e a[${j+1}]=${y}.`);
+      if(x>y){
+        a[j]=y; a[j+1]=x; R.swaps++;
+        R.snap(Object.assign({},tail,{[j]:'swap',[j+1]:'swap'}), `${x} > ${y} → scambio.`);
+      }
+    }
+    const placed=Object.assign({},tail); placed[n-1-i]='sorted';
+    R.snap(placed, `a[${n-1-i}]=${a[n-1-i]} è in posizione finale.`);
+  }
+  R.snap(allSorted(n), "Array ordinato.");
+  return R.steps;
+}
+
+/* ---------- Insertion sort ---------- */
+function insertionSort(input){
+  const a=input.slice(), R=record(a), n=a.length;
+  R.snap({0:'sorted'}, "Insertion sort: costruisco la parte ordinata (a sinistra) inserendo un elemento alla volta nel posto giusto.");
+  for(let i=1;i<n;i++){
+    const key=a[i];
+    const sortedM={}; for(let k=0;k<i;k++) sortedM[k]='sorted';
+    R.snap(Object.assign({},sortedM,{[i]:'key'}), `Prendo la chiave a[${i}]=${key}.`);
+    let j=i-1;
+    while(j>=0){
+      R.comparisons++;
+      R.snap(Object.assign({},sortedM,{[j]:'compare',[j+1]:'key'}), `a[${j}]=${a[j]} > chiave ${key}?`);
+      if(a[j]>key){
+        a[j+1]=a[j]; R.swaps++;
+        R.snap(Object.assign({},sortedM,{[j+1]:'swap'}), `Sì → sposto ${a[j]} di una posizione a destra.`);
+        j--;
+      } else { break; }
+    }
+    a[j+1]=key;
+    const s2={}; for(let k=0;k<=i;k++) s2[k]='sorted';
+    R.snap(s2, `Inserisco ${key} in posizione ${j+1}.`);
+  }
+  R.snap(allSorted(n), "Array ordinato.");
+  return R.steps;
+}
+
+/* ---------- Selection sort ---------- */
+function selectionSort(input){
+  const a=input.slice(), R=record(a), n=a.length;
+  R.snap({}, "Selection sort: a ogni passata cerco il minimo nella parte non ordinata e lo porto a sinistra.");
+  for(let i=0;i<n-1;i++){
+    let min=i;
+    const sortedM={}; for(let k=0;k<i;k++) sortedM[k]='sorted';
+    R.snap(Object.assign({},sortedM,{[i]:'key'}), `Cerco il minimo da posizione ${i}. Candidato: ${a[i]}.`);
+    for(let j=i+1;j<n;j++){
+      R.comparisons++;
+      R.snap(Object.assign({},sortedM,{[min]:'key',[j]:'compare'}), `a[${j}]=${a[j]} < minimo attuale ${a[min]}?`);
+      if(a[j]<a[min]){ min=j; R.snap(Object.assign({},sortedM,{[min]:'key'}), `Nuovo minimo: ${a[min]} (pos ${min}).`); }
+    }
+    if(min!==i){ const t=a[i]; a[i]=a[min]; a[min]=t; R.swaps++;
+      R.snap(Object.assign({},sortedM,{[i]:'swap',[min]:'swap'}), `Scambio il minimo ${a[i]} nella posizione ${i}.`); }
+    sortedM[i]='sorted';
+    R.snap(sortedM, `Posizione ${i} sistemata.`);
+  }
+  R.snap(allSorted(n), "Array ordinato.");
+  return R.steps;
+}
+
+/* ---------- Merge sort (top-down) ---------- */
+function mergeSort(input){
+  const a=input.slice(), R=record(a), n=a.length;
+  R.snap({}, "Merge sort: divido a metà ricorsivamente fino a sottoarray di 1 elemento, poi fondo le metà ordinate.");
+  function ms(lo,hi){
+    if(lo>=hi) return;
+    const mid=(lo+hi)>>1;
+    const rng={}; for(let k=lo;k<=hi;k++) rng[k]='key';
+    R.snap(rng, `Divido [${lo}..${hi}] in [${lo}..${mid}] e [${mid+1}..${hi}].`);
+    ms(lo,mid); ms(mid+1,hi);
+    const tmp=[]; let i=lo, j=mid+1;
+    while(i<=mid && j<=hi){
+      R.comparisons++;
+      R.snap({[i]:'compare',[j]:'compare'}, `Fusione [${lo}..${hi}]: ${a[i]} vs ${a[j]} → prendo il più piccolo.`);
+      if(a[i]<=a[j]) tmp.push(a[i++]); else tmp.push(a[j++]);
+    }
+    while(i<=mid) tmp.push(a[i++]);
+    while(j<=hi) tmp.push(a[j++]);
+    for(let k=0;k<tmp.length;k++){ a[lo+k]=tmp[k]; R.swaps++; }
+    const merged={}; for(let k=lo;k<=hi;k++) merged[k]='swap';
+    R.snap(merged, `Scrivo la fusione ordinata in [${lo}..${hi}].`);
+  }
+  ms(0,n-1);
+  R.snap(allSorted(n), "Array ordinato.");
+  return R.steps;
+}
+
+/* ---------- Quick sort (partizione di Lomuto, pivot a destra) ---------- */
+function quickSort(input){
+  const a=input.slice(), R=record(a), n=a.length;
+  R.snap({}, "Quick sort: scelgo un pivot, partiziono (minori a sinistra, maggiori a destra), poi ricorro sulle due parti.");
+  function qs(lo,hi){
+    if(lo>=hi) return;
+    const pivot=a[hi];
+    let i=lo; // confine: [lo..i-1] sono i minori
+    const mk=(i,j)=>{
+      const m={[hi]:'pivot'};
+      for(let k=lo;k<i;k++) m[k]='lt';
+      for(let k=i;k<j;k++) m[k]='gt';
+      if(j>=lo && j<hi) m[j]='compare';
+      return m;
+    };
+    R.snap(mk(lo,lo), `Pivot = ${pivot} (pos ${hi}). Partiziono [${lo}..${hi}].`);
+    for(let j=lo;j<hi;j++){
+      R.comparisons++;
+      R.snap(mk(i,j), `a[${j}]=${a[j]} < pivot ${pivot}?`);
+      if(a[j]<pivot){
+        if(i!==j){ const t=a[i]; a[i]=a[j]; a[j]=t; R.swaps++; }
+        i++;
+        R.snap(mk(i,j+1), `Sì → in zona "minori". Il confine sinistro avanza a ${i}.`);
+      } else {
+        R.snap(mk(i,j+1), `No → resta in zona "maggiori".`);
+      }
+    }
+    const t=a[i]; a[i]=a[hi]; a[hi]=t; R.swaps++;
+    const placed={}; for(let k=lo;k<i;k++) placed[k]='lt'; for(let k=i+1;k<=hi;k++) placed[k]='gt'; placed[i]='sorted';
+    R.snap(placed, `Porto il pivot ${pivot} in posizione ${i}: ora è al suo posto definitivo.`);
+    qs(lo,i-1); qs(i+1,hi);
+  }
+  qs(0,n-1);
+  R.snap(allSorted(n), "Array ordinato.");
+  return R.steps;
+}
+
+/* ---------- Heap sort (con albero) ---------- */
+function heapSort(input){
+  const a=input.slice(), R=record(a), n=a.length;
+  const heapMarks=(active,compare,size,largest)=>{
+    const m={};
+    for(let k=size;k<n;k++) m[k]='sorted';
+    compare.forEach(c=>{ if(c<size) m[c]='compare'; });
+    if(active>=0 && active<size) m[active]='key';
+    if(largest>=0 && largest<size && largest!==active) m[largest]='gt';
+    return m;
+  };
+  const heapExtra=(active,compare,size)=>({tree:true, heapSize:size, treeActive:active, treeCompare:compare.slice()});
+
+  function siftDown(i,size){
+    while(true){
+      let largest=i; const l=2*i+1, r=2*i+2; const cmp=[];
+      if(l<size){ R.comparisons++; cmp.push(l); if(a[l]>a[largest]) largest=l; }
+      if(r<size){ R.comparisons++; cmp.push(r); if(a[r]>a[largest]) largest=r; }
+      R.snap(heapMarks(i,cmp,size,largest), `Nodo ${i} (${a[i]}): confronto coi figli. Il più grande è ${a[largest]}.`, heapExtra(i,cmp,size));
+      if(largest!==i){
+        const t=a[i]; a[i]=a[largest]; a[largest]=t; R.swaps++;
+        R.snap(heapMarks(largest,[],size,-1), `${a[largest]} < ${a[i]}: scambio per ripristinare la proprietà di max-heap. Scendo al nodo ${largest}.`, heapExtra(largest,[],size));
+        i=largest;
+      } else { break; }
+    }
+  }
+
+  R.snap(heapMarks(-1,[],n,-1), "Fase 1 — costruzione del max-heap: heapify dai nodi interni verso la radice.", heapExtra(-1,[],n));
+  for(let i=Math.floor(n/2)-1;i>=0;i--) siftDown(i,n);
+  R.snap(heapMarks(-1,[],n,-1), "Max-heap pronto: la radice (pos 0) contiene il massimo.", heapExtra(-1,[],n));
+
+  for(let size=n;size>1;size--){
+    const t=a[0]; a[0]=a[size-1]; a[size-1]=t; R.swaps++;
+    const m=heapMarks(0,[],size-1,-1); m[size-1]='swap';
+    R.snap(m, `Fase 2 — estraggo il massimo ${a[size-1]}: lo scambio con l'ultimo e lo "congelo" in posizione ${size-1}.`, heapExtra(0,[],size-1));
+    siftDown(0,size-1);
+  }
+  R.snap(allSorted(n), "Array ordinato.", {tree:true, heapSize:0, treeActive:-1, treeCompare:[]});
+  return R.steps;
+}
+
+/* ===========================================================
+   Catalogo algoritmi + complessità
+   =========================================================== */
+const ALGOS = {
+  bubble:{ name:"Bubble sort", fn:bubbleSort, tree:false,
+    best:"O(n)", avg:"O(n²)", worst:"O(n²)", space:"O(1)", stable:"Sì",
+    desc:"Semplice ma lento. Il caso O(n) si ottiene solo con un flag che ferma l'algoritmo se in una passata non avvengono scambi (array già ordinato)." },
+  insertion:{ name:"Insertion sort", fn:insertionSort, tree:false,
+    best:"O(n)", avg:"O(n²)", worst:"O(n²)", space:"O(1)", stable:"Sì",
+    desc:"Ottimo su array piccoli o quasi ordinati. Lavora in loco ed è stabile: è la base di molte implementazioni ibride." },
+  selection:{ name:"Selection sort", fn:selectionSort, tree:false,
+    best:"O(n²)", avg:"O(n²)", worst:"O(n²)", space:"O(1)", stable:"No",
+    desc:"Fa sempre lo stesso numero di confronti, ma pochissimi scambi (al più n-1): utile quando scrivere in memoria costa molto." },
+  merge:{ name:"Merge sort", fn:mergeSort, tree:false,
+    best:"O(n log n)", avg:"O(n log n)", worst:"O(n log n)", space:"O(n)", stable:"Sì",
+    desc:"Divide et impera con prestazioni garantite e stabilità, al prezzo di O(n) memoria extra per la fusione." },
+  quick:{ name:"Quick sort", fn:quickSort, tree:false,
+    best:"O(n log n)", avg:"O(n log n)", worst:"O(n²)", space:"O(log n)", stable:"No",
+    desc:"Velocissimo in media e in loco. Il caso peggiore O(n²) capita con pivot pessimi (es. array già ordinato + pivot all'estremo); si mitiga col pivot casuale o mediana-di-tre." },
+  heap:{ name:"Heap sort", fn:heapSort, tree:true,
+    best:"O(n log n)", avg:"O(n log n)", worst:"O(n log n)", space:"O(1)", stable:"No",
+    desc:"Garantisce O(n log n) in loco usando un max-heap. L'array è visto come albero binario: il figlio di i sta in 2i+1 e 2i+2." }
+};
+
+/* ===========================================================
+   Stato + rendering
+   =========================================================== */
+const $=id=>document.getElementById(id);
+const state={ algo:"bubble", base:[], steps:[], idx:0, playing:false, timer:null };
+
+function randomArray(n){
+  const out=[]; const used=new Set();
+  while(out.length<n){ const v=Math.floor(Math.random()*92)+8; if(!used.has(v)){used.add(v); out.push(v);} }
+  return out;
+}
+
+function buildTabs(){
+  const t=$("tabs");
+  t.innerHTML="";
+  Object.keys(ALGOS).forEach(key=>{
+    const b=document.createElement("button");
+    b.className="tab"; b.textContent=ALGOS[key].name;
+    b.setAttribute("aria-pressed", key===state.algo);
+    b.onclick=()=>{ state.algo=key; regenerate(false); };
+    t.appendChild(b);
+  });
+}
+
+function regenerate(newArray){
+  pause();
+  if(newArray || state.base.length!==(+$("size").value)) state.base=randomArray(+$("size").value);
+  state.steps=ALGOS[state.algo].fn(state.base);
+  state.idx=0;
+  document.querySelectorAll(".tab").forEach((b,i)=>{
+    b.setAttribute("aria-pressed", Object.keys(ALGOS)[i]===state.algo);
+  });
+  // pannello complessità
+  const A=ALGOS[state.algo];
+  $("algoName").textContent=A.name+" — complessità";
+  $("cx").innerHTML=
+    `<div class="k">Caso migliore</div><div class="v">${A.best}</div>`+
+    `<div class="k">Caso medio</div><div class="v">${A.avg}</div>`+
+    `<div class="k">Caso peggiore</div><div class="v">${A.worst}</div>`+
+    `<div class="k">Spazio</div><div class="v">${A.space}</div>`+
+    `<div class="k">Stabile</div><div class="v">${A.stable}</div>`;
+  $("algoDesc").textContent=A.desc;
+  $("tree").className = A.tree ? "on" : "";
+  buildBars();
+  render();
+}
+
+function buildBars(){
+  const c=$("bars"); c.innerHTML="";
+  const n=state.base.length;
+  for(let i=0;i<n;i++){
+    const b=document.createElement("div");
+    b.className="bar";
+    b.innerHTML=`<span class="val"></span><span class="idx">${i}</span>`;
+    c.appendChild(b);
+  }
+}
+
+function render(){
+  const step=state.steps[state.idx];
+  const maxv=Math.max(...state.base, 1);
+  const bars=$("bars").children;
+  for(let i=0;i<step.arr.length;i++){
+    const bar=bars[i];
+    bar.style.height=(step.arr[i]/maxv*100)+"%";
+    bar.className="bar"+(step.marks[i]?" "+step.marks[i]:"");
+    bar.querySelector(".val").textContent=step.arr[i];
+  }
+  $("note").textContent=step.note;
+  $("mCmp").textContent=step.comparisons;
+  $("mSwp").textContent=step.swaps;
+  $("progress").textContent=`passo ${state.idx} / ${state.steps.length-1}`;
+  $("prev").disabled = state.idx===0;
+  $("first").disabled = state.idx===0;
+  $("next").disabled = state.idx===state.steps.length-1;
+  $("last").disabled = state.idx===state.steps.length-1;
+  if(ALGOS[state.algo].tree) renderTree(step);
+}
+
+/* ---- albero binario per heap sort ---- */
+function renderTree(step){
+  const size = step.heapSize!=null ? step.heapSize : step.arr.length;
+  const arr=step.arr;
+  const W=900, H=190, r=17, levelGap=46, topPad=24;
+  let svg=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`;
+  const pos=i=>{
+    const level=Math.floor(Math.log2(i+1));
+    const countAtLevel=Math.pow(2,level);
+    const posInLevel=i-(countAtLevel-1);
+    const x=(posInLevel+0.5)/countAtLevel*W;
+    const y=topPad + level*levelGap + r;
+    return {x,y};
+  };
+  const total=arr.length;
+  // archi
+  for(let i=0;i<total;i++){
+    const p=pos(i);
+    [2*i+1,2*i+2].forEach(ch=>{
+      if(ch<total){ const cp=pos(ch); svg+=`<line class="tedge" x1="${p.x}" y1="${p.y}" x2="${cp.x}" y2="${cp.y}"/>`; }
+    });
+  }
+  // nodi
+  for(let i=0;i<total;i++){
+    const p=pos(i);
+    let cls="";
+    if(i>=size) cls="tnode-sorted";
+    else if(i===step.treeActive) cls="tnode-key";
+    else if(step.treeCompare && step.treeCompare.indexOf(i)>=0) cls="tnode-compare";
+    svg+=`<g class="tnode ${cls}"><circle class="tnode-circle" cx="${p.x}" cy="${p.y}" r="${r}"/>`+
+         `<text class="tnode-text" x="${p.x}" y="${p.y}">${arr[i]}</text></g>`;
+  }
+  svg+=`</svg>`;
+  $("tree").innerHTML=svg;
+}
+
+/* ===========================================================
+   Player
+   =========================================================== */
+function stepTo(i){
+  state.idx=Math.max(0, Math.min(state.steps.length-1, i));
+  render();
+  if(state.idx===state.steps.length-1) pause();
+}
+function play(){
+  if(state.idx>=state.steps.length-1) state.idx=0;
+  state.playing=true; $("playIcon").textContent="❚❚"; $("playTxt").textContent="Pausa";
+  const delay=()=> 720 - (+$("speed").value)*64; // 1→656ms ... 10→80ms
+  clearInterval(state.timer);
+  state.timer=setInterval(()=>{
+    if(state.idx>=state.steps.length-1){ pause(); return; }
+    stepTo(state.idx+1);
+  }, delay());
+}
+function pause(){
+  state.playing=false; clearInterval(state.timer);
+  $("playIcon").textContent="▶"; $("playTxt").textContent="Play";
+}
+function toggle(){ state.playing?pause():play(); }
+
+/* ---- eventi ---- */
+$("play").onclick=toggle;
+$("next").onclick=()=>{pause(); stepTo(state.idx+1);};
+$("prev").onclick=()=>{pause(); stepTo(state.idx-1);};
+$("first").onclick=()=>{pause(); stepTo(0);};
+$("last").onclick=()=>{pause(); stepTo(state.steps.length-1);};
+$("shuffle").onclick=()=>regenerate(true);
+$("size").oninput=e=>{ $("sizeVal").textContent=e.target.value; };
+$("size").onchange=()=>regenerate(true);
+$("speed").oninput=()=>{ if(state.playing) play(); };
+
+document.addEventListener("keydown", e=>{
+  if(e.key==="ArrowRight"){ e.preventDefault(); pause(); stepTo(state.idx+1); }
+  else if(e.key==="ArrowLeft"){ e.preventDefault(); pause(); stepTo(state.idx-1); }
+  else if(e.key===" "){ e.preventDefault(); toggle(); }
+  else if(e.key==="Home"){ e.preventDefault(); pause(); stepTo(0); }
+  else if(e.key==="End"){ e.preventDefault(); pause(); stepTo(state.steps.length-1); }
+});
+
+/* ---- avvio ---- */
+buildTabs();
+state.base=randomArray(+$("size").value);
+regenerate(false);
+</script>
+</body>
+</html>
